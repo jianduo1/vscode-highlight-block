@@ -2,6 +2,10 @@
 
 一个 VS Code 插件，用于根据映射表格配置高亮不同标记的代码块，类似 Cursor 的代码差异显示效果。
 
+## 效果展示
+
+![](https://raw.githubusercontent.com/jianduo1/vscode-highlight-block/main/images/highlight.png)
+
 ## 功能特性
 
 - ✨ 支持映射表格配置，不同标记对应不同颜色
