@@ -1,0 +1,87 @@
+{
+  "name": "highlight-block",
+  "displayName": "Highlight Block",
+  "description": "高亮指定标记之间的代码块",
+  "version": "1.0.0",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "highlight",
+    "block",
+    "code",
+    "marker"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./src/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "highlight-block.toggle",
+        "title": "切换高亮块",
+        "category": "Highlight Block"
+      },
+      {
+        "command": "highlight-block.clear",
+        "title": "清除所有高亮",
+        "category": "Highlight Block"
+      },
+      {
+        "command": "highlight-block.showMarkers",
+        "title": "显示可用标记",
+        "category": "Highlight Block"
+      }
+    ],
+    "configuration": {
+      "title": "Highlight Block",
+      "properties": {
+        "highlightBlock.colorMappings": {
+          "type": "object",
+          "patternProperties": {
+            ".*": {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}[0-9a-fA-F]{2}?$|^[a-zA-Z]+$",
+              "description": "颜色值 (支持 #hex 格式或颜色名称)"
+            }
+          },
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "标记与颜色的映射配置。",
+          "default": {
+            "info": "#0080ff20",
+            "highlight": "#ffff0020",
+            "tip": "#4b5a2cff",
+            "warn": "#ffa50020",
+            "error": "#ff000020",
+            "success": "#00ff0020",
+            "delete": "#ff000020",
+            "add": "#00ff0020"
+          }
+        },
+        "highlightBlock.autoHighlight": {
+          "type": "boolean",
+          "default": true,
+          "description": "自动检测并高亮标记块"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^2.19.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/highlight-block.git"
+  },
+  "publisher": "your-publisher-name",
+  "license": "MIT"
+}
