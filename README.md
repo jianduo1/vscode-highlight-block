@@ -4,7 +4,7 @@
   <img src="https://raw.githubusercontent.com/jianduo1/vscode-highlight-block/main/icon.jpg" alt="Highlight Block Logo" width="128" height="128">
 </p>
 
-一个 VS Code 插件，用于根据映射表格配置高亮不同标记的代码块，类似 Cursor 的代码差异显示效果。
+一个 VS Code 插件，用于根据映射表格配置高亮不同标记的代码块，支持代码折叠，类似 Cursor 的代码差异显示效果。
 
 ## 效果展示
 
@@ -20,6 +20,7 @@
 - 📝 支持多种注释格式中的标记
 - ⚡ 实时更新高亮效果
 - 🎯 初始配置为空，需要用户自定义标记和颜色
+- 📁 支持代码块折叠功能，可以折叠/展开高亮的代码区域
 
 ## 使用方法
 
@@ -124,6 +125,11 @@ const importantInfo = "重要信息会显示蓝色";
 - 类型：`boolean`
 - 默认值：`true`
 - 描述：是否自动检测并高亮标记块
+
+### `highlightBlock.enableFolding`
+- 类型：`boolean`
+- 默认值：`true`
+- 描述：为高亮代码块启用折叠功能
 
 ## 配置示例
 

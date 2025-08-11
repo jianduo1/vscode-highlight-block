@@ -2,7 +2,7 @@
   "name": "highlight-block",
   "displayName": "Highlight Block",
   "description": "高亮指定标记之间的代码块",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "icon": "icon.jpg",
   "engines": {
     "vscode": "^1.74.0"
@@ -21,6 +21,13 @@
   ],
   "main": "./src/extension.js",
   "contributes": {
+    "languages": [
+      {
+        "id": "highlight-block-folding",
+        "aliases": ["Highlight Block Folding"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
     "commands": [
       {
         "command": "highlight-block.toggle",
@@ -69,6 +76,11 @@
           "type": "boolean",
           "default": true,
           "description": "自动检测并高亮标记块"
+        },
+        "highlightBlock.enableFolding": {
+          "type": "boolean",
+          "default": true,
+          "description": "为高亮代码块启用折叠功能"
         }
       }
     }

@@ -1,6 +1,71 @@
 const vscode = require('vscode');
 
 /**
+ * 折叠范围提供者
+ */
+class HighlightBlockFoldingProvider {
+    constructor(highlightManager) {
+        this.highlightManager = highlightManager;
+    }
+
+    provideFoldingRanges(document, context, token) {
+        // 检查是否启用折叠功能
+        const config = vscode.workspace.getConfiguration('highlightBlock');
+        if (!config.get('enableFolding', true)) {
+            return [];
+        }
+
+        const colorMappings = this.highlightManager.getColorMappings();
+        const foldingRanges = [];
+
+        const text = document.getText();
+        const lines = text.split('\n');
+
+        // 跟踪每个标记的当前块
+        const currentBlocks = {};
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmedLine = line.trim();
+
+            // 检查每个配置的标记
+            Object.keys(colorMappings).forEach(marker => {
+                const startMarker = `${marker}-start`;
+                const endMarker = `${marker}-end`;
+
+                // 检查开始标记
+                if (this.highlightManager.containsMarker(trimmedLine, startMarker)) {
+                    currentBlocks[marker] = {
+                        startLine: i,
+                        endLine: null
+                    };
+                }
+                // 检查结束标记
+                else if (this.highlightManager.containsMarker(trimmedLine, endMarker)) {
+                    if (currentBlocks[marker]) {
+                        const startLine = currentBlocks[marker].startLine;
+                        const endLine = i;
+                        
+                        // 创建折叠范围（从开始标记行到结束标记行）
+                        if (endLine > startLine) {
+                            foldingRanges.push(new vscode.FoldingRange(
+                                startLine,
+                                endLine,
+                                vscode.FoldingRangeKind.Region
+                            ));
+                        }
+                        
+                        currentBlocks[marker] = null;
+                    }
+                }
+            });
+        }
+
+        return foldingRanges;
+    }
+}
+
+/**
  * 高亮块管理器
  */
 class HighlightBlockManager {
@@ -241,6 +306,7 @@ class HighlightBlockManager {
 }
 
 let highlightManager;
+let foldingProvider;
 
 /**
  * 插件激活函数
@@ -249,6 +315,7 @@ function activate(context) {
     console.log('Highlight Block 插件已激活');
 
     highlightManager = new HighlightBlockManager();
+    foldingProvider = new HighlightBlockFoldingProvider(highlightManager);
 
     // 注册命令：切换高亮
     const toggleCommand = vscode.commands.registerCommand('highlight-block.toggle', () => {
@@ -323,6 +390,12 @@ function activate(context) {
         }
     });
 
+    // 注册折叠范围提供者（支持所有语言）
+    const foldingProviderRegistration = vscode.languages.registerFoldingRangeProvider(
+        { scheme: 'file' }, // 支持所有文件
+        foldingProvider
+    );
+
     // 添加到订阅列表
     context.subscriptions.push(
         toggleCommand,
@@ -332,6 +405,7 @@ function activate(context) {
         onDidChangeTextDocument,
         onDidChangeConfiguration,
         onDidChangeVisibleTextEditors,
+        foldingProviderRegistration,
         highlightManager
     );
 
