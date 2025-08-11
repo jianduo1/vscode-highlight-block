@@ -8,7 +8,9 @@
 
 ## 效果展示
 
-![](https://raw.githubusercontent.com/jianduo1/vscode-highlight-block/main/images/highlight.png)
+| 效果展示 | 配置界面 |
+| :---: | :---: |
+| ![](https://raw.githubusercontent.com/jianduo1/vscode-highlight-block/main/images/highlight.png) | ![](https://raw.githubusercontent.com/jianduo1/vscode-highlight-block/main/images/setting.png) |
 
 ## 功能特性
 
@@ -106,10 +108,10 @@ const importantInfo = "重要信息会显示蓝色";
 
 ### `highlightBlock.colorMappings`
 - 类型：`object`
-- 默认值：`{}`（空对象）
 - 描述：标记与颜色的映射配置，在 VS Code 设置界面中以表格形式编辑
 - 格式：`{"标记名": "颜色值"}`
-- 推荐配置：
+- 默认值：
+  - `tip`: `#4b5a2cff` (绿色提示)
   - `info`: `#0080ff20` (蓝色信息)
   - `highlight`: `#ffff0020` (黄色高亮)
   - `warn`: `#ffa50020` (橙色警告)
