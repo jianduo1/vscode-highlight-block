@@ -4,7 +4,7 @@
   <img src="https://raw.githubusercontent.com/jianduo1/vscode-highlight-block/main/icon.jpg" alt="Highlight Block Logo" width="128" height="128">
 </p>
 
-一个 VS Code 插件，用于根据映射表格配置高亮不同标记的代码块，支持代码折叠，类似 Cursor 的代码差异显示效果。
+一个 VS Code 插件，自动识别start和end之间的代码块，然后根据映射表格配置，给他们添加高亮背景颜色和代码折叠效果，类似 Cursor 的代码差异显示效果。
 
 ## 效果展示
 
