@@ -65,6 +65,24 @@ const importantInfo = "重要信息会显示蓝色";
 - 只有匹配到完整的 start-end 对才会进行背景色渲染
 - 单独的 start 标记或未配对的标记不会被高亮
 
+### 代码折叠功能
+
+插件自动为高亮的代码块提供折叠功能：
+
+1. **自动检测**：完整的 `marker-start` 到 `marker-end` 标记对会自动支持折叠
+2. **折叠操作**：点击行号左侧的折叠图标可以折叠/展开代码块
+3. **快捷键**：使用 `Ctrl+Shift+[` 折叠，`Ctrl+Shift+]` 展开
+4. **配置开关**：可通过 `highlightBlock.enableFolding` 设置启用/禁用
+
+```python
+# warn-start  ← 点击这里的折叠图标
+def complex_function():
+    # 这里是复杂的代码逻辑
+    # 可以被折叠隐藏
+    return "result"
+# warn-end
+```
+
 ### 如何配置标记
 
 1. **通过 VS Code 设置界面**：
@@ -189,9 +207,32 @@ MIT License
 
 ## 更新日志
 
-### 1.0.0
-- 初始版本
-- 支持映射表格配置的代码块高亮功能
-- 预置7种常用标记和颜色
-- 支持 marker-start/marker-end 和 marker/marker-end 格式
-- 类似 Cursor 的纯背景色高亮效果
+### 1.1.0 (2024-08-11)
+- 🆕 **新增代码折叠功能**：高亮的代码块现在支持折叠/展开
+- 🔧 添加 `HighlightBlockFoldingProvider` 折叠范围提供者
+- ⚙️ 新增 `highlightBlock.enableFolding` 配置选项
+- 📄 添加 `language-configuration.json` 语言配置文件  
+- 🌐 注册折叠范围提供者支持所有文件类型
+- 📖 更新文档说明折叠功能使用方法
+- 🎯 只对完整的 `marker-start` 到 `marker-end` 标记对提供折叠
+
+### 1.0.2 (2024-08-11)
+- 📸 添加设置界面截图
+- 📖 更新文档内容和使用说明
+- 🎨 优化插件图标显示
+
+### 1.0.1 (2024-08-11)
+- 🎨 添加插件图标 `icon.jpg`
+- 📦 在 `package.json` 中配置图标引用
+- 📖 更新 README.md 显示图标
+- 🌐 使用 GitHub 图标链接确保在线显示
+
+### 1.0.0 (2024-08-11)
+- 🚀 初始版本发布
+- ✨ 支持映射表格配置的代码块高亮功能
+- 🎨 类似 Cursor 的纯背景色高亮效果（无边框）
+- 🔧 支持 `marker-start` 到 `marker-end` 标记格式
+- 📝 支持多种注释格式中的标记检测
+- ⚡ 实时更新高亮效果
+- 🎯 只渲染完整的标记对，避免未配对标记的意外高亮
+- 🛠️ 预置推荐的标记和颜色配置

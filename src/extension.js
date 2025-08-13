@@ -12,13 +12,26 @@ class HighlightBlockFoldingProvider {
         // 检查是否启用折叠功能
         const config = vscode.workspace.getConfiguration('highlightBlock');
         if (!config.get('enableFolding', true)) {
-            return [];
+            return null; // 返回null让其他提供者处理
         }
 
         const colorMappings = this.highlightManager.getColorMappings();
-        const foldingRanges = [];
-
         const text = document.getText();
+        
+        // 快速检查文档中是否包含任何高亮标记
+        let hasHighlightMarkers = false;
+        Object.keys(colorMappings).forEach(marker => {
+            if (text.includes(`${marker}-start`) || text.includes(`${marker}-end`)) {
+                hasHighlightMarkers = true;
+            }
+        });
+
+        // 如果没有高亮标记，返回null让其他折叠提供者处理
+        if (!hasHighlightMarkers) {
+            return null;
+        }
+
+        const foldingRanges = [];
         const lines = text.split('\n');
 
         // 跟踪每个标记的当前块
@@ -61,7 +74,8 @@ class HighlightBlockFoldingProvider {
             });
         }
 
-        return foldingRanges;
+        // 如果没有找到有效的折叠范围，返回null让其他提供者处理
+        return foldingRanges.length > 0 ? foldingRanges : null;
     }
 }
 
@@ -390,9 +404,9 @@ function activate(context) {
         }
     });
 
-    // 注册折叠范围提供者（支持所有语言）
+    // 注册折叠范围提供者（仅在启用折叠功能且有高亮块时提供）
     const foldingProviderRegistration = vscode.languages.registerFoldingRangeProvider(
-        { scheme: 'file' }, // 支持所有文件
+        '*', // 支持所有语言，但提供者内部会检查条件
         foldingProvider
     );
 
@@ -418,7 +432,7 @@ function activate(context) {
         }
     }
 
-    vscode.window.showInformationMessage('Highlight Block 插件已成功加载！');
+    // vscode.window.showInformationMessage('Highlight Block 插件已成功加载！');
 }
 
 /**

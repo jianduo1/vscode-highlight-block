@@ -2,7 +2,7 @@
   "name": "highlight-block",
   "displayName": "Highlight Block",
   "description": "高亮指定标记之间的代码块",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "icon": "icon.jpg",
   "engines": {
     "vscode": "^1.74.0"
@@ -21,13 +21,6 @@
   ],
   "main": "./src/extension.js",
   "contributes": {
-    "languages": [
-      {
-        "id": "highlight-block-folding",
-        "aliases": ["Highlight Block Folding"],
-        "configuration": "./language-configuration.json"
-      }
-    ],
     "commands": [
       {
         "command": "highlight-block.toggle",
