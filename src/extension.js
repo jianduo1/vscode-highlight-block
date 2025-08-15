@@ -12,9 +12,167 @@ class HighlightBlockFoldingProvider {
         // 检查是否启用折叠功能
         const config = vscode.workspace.getConfiguration('highlightBlock');
         if (!config.get('enableFolding', true)) {
-            return []; // 返回空数组而不是null
+            return undefined; // 返回undefined让其他折叠提供者处理
         }
 
+        const allFoldingRanges = [];
+
+        // 1. 添加基于语言的默认折叠（基于括号、缩进、#region等）
+        const defaultRanges = this.getDefaultFoldingRanges(document);
+        if (defaultRanges && defaultRanges.length > 0) {
+            allFoldingRanges.push(...defaultRanges);
+        }
+
+        // 2. 添加高亮块折叠
+        const highlightRanges = this.getHighlightBlockFoldingRanges(document);
+        if (highlightRanges && highlightRanges.length > 0) {
+            allFoldingRanges.push(...highlightRanges);
+        }
+
+        return allFoldingRanges.length > 0 ? allFoldingRanges : undefined;
+    }
+
+    getDefaultFoldingRanges(document) {
+        const foldingRanges = [];
+        const text = document.getText();
+        const lines = text.split('\n');
+
+        // 基于括号的折叠检测
+        const bracketStack = [];
+        const bracketPairs = [
+            { open: '{', close: '}' },
+            { open: '[', close: ']' },
+            { open: '(', close: ')' }
+        ];
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmedLine = line.trim();
+
+            // 跳过注释行
+            if (trimmedLine.startsWith('//') || trimmedLine.startsWith('#') || 
+                trimmedLine.startsWith('/*') || trimmedLine.startsWith('*')) {
+                continue;
+            }
+
+            for (let j = 0; j < line.length; j++) {
+                const char = line[j];
+                
+                // 检查开括号
+                const openBracket = bracketPairs.find(pair => pair.open === char);
+                if (openBracket) {
+                    bracketStack.push({ type: openBracket, line: i, char: j });
+                }
+                
+                // 检查闭括号
+                const closeBracket = bracketPairs.find(pair => pair.close === char);
+                if (closeBracket) {
+                    // 找到匹配的开括号
+                    for (let k = bracketStack.length - 1; k >= 0; k--) {
+                        if (bracketStack[k].type.close === char) {
+                            const openBracketInfo = bracketStack[k];
+                            bracketStack.splice(k, 1);
+                            
+                            // 创建折叠范围（至少2行才折叠）
+                            if (i > openBracketInfo.line + 1) {
+                                foldingRanges.push(new vscode.FoldingRange(
+                                    openBracketInfo.line,
+                                    i,
+                                    vscode.FoldingRangeKind.Region
+                                ));
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 基于缩进的折叠检测（适用于Python等）
+        if (document.languageId === 'python' || document.languageId === 'yaml') {
+            const indentRanges = this.getIndentBasedFolding(lines);
+            foldingRanges.push(...indentRanges);
+        }
+
+        // 基于#region/#endregion的折叠
+        const regionRanges = this.getRegionBasedFolding(lines);
+        foldingRanges.push(...regionRanges);
+
+        return foldingRanges;
+    }
+
+    getIndentBasedFolding(lines) {
+        const foldingRanges = [];
+        const indentStack = [];
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (line.trim() === '') continue; // 跳过空行
+
+            const indent = line.search(/\S/); // 找到第一个非空白字符的位置
+            if (indent === -1) continue; // 跳过只有空白字符的行
+
+            // 处理缩进减少的情况
+            while (indentStack.length > 0 && indentStack[indentStack.length - 1].indent >= indent) {
+                const indentInfo = indentStack.pop();
+                if (i > indentInfo.line + 1) {
+                    foldingRanges.push(new vscode.FoldingRange(
+                        indentInfo.line,
+                        i - 1,
+                        vscode.FoldingRangeKind.Region
+                    ));
+                }
+            }
+
+            indentStack.push({ line: i, indent: indent });
+        }
+
+        // 处理剩余的缩进
+        while (indentStack.length > 0) {
+            const indentInfo = indentStack.pop();
+            if (lines.length > indentInfo.line + 1) {
+                foldingRanges.push(new vscode.FoldingRange(
+                    indentInfo.line,
+                    lines.length - 1,
+                    vscode.FoldingRangeKind.Region
+                ));
+            }
+        }
+
+        return foldingRanges;
+    }
+
+    getRegionBasedFolding(lines) {
+        const foldingRanges = [];
+        const regionStack = [];
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmedLine = line.trim();
+
+            // 检查#region
+            if (trimmedLine.includes('#region') || trimmedLine.includes('// #region')) {
+                regionStack.push(i);
+            }
+            // 检查#endregion
+            else if (trimmedLine.includes('#endregion') || trimmedLine.includes('// #endregion')) {
+                if (regionStack.length > 0) {
+                    const startLine = regionStack.pop();
+                    if (i > startLine) {
+                        foldingRanges.push(new vscode.FoldingRange(
+                            startLine,
+                            i,
+                            vscode.FoldingRangeKind.Region
+                        ));
+                    }
+                }
+            }
+        }
+
+        return foldingRanges;
+    }
+
+    getHighlightBlockFoldingRanges(document) {
         const colorMappings = this.highlightManager.getColorMappings();
         const text = document.getText();
         
@@ -26,40 +184,33 @@ class HighlightBlockFoldingProvider {
             }
         });
 
-        // 如果没有高亮标记，返回空数组让其他折叠提供者处理
         if (!hasHighlightMarkers) {
             return [];
         }
 
         const foldingRanges = [];
         const lines = text.split('\n');
-
-        // 跟踪每个标记的当前块
         const currentBlocks = {};
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
             const trimmedLine = line.trim();
 
-            // 检查每个配置的标记
             Object.keys(colorMappings).forEach(marker => {
                 const startMarker = `${marker}-start`;
                 const endMarker = `${marker}-end`;
 
-                // 检查开始标记
                 if (this.highlightManager.containsMarker(trimmedLine, startMarker)) {
                     currentBlocks[marker] = {
                         startLine: i,
                         endLine: null
                     };
                 }
-                // 检查结束标记
                 else if (this.highlightManager.containsMarker(trimmedLine, endMarker)) {
                     if (currentBlocks[marker]) {
                         const startLine = currentBlocks[marker].startLine;
                         const endLine = i;
                         
-                        // 创建折叠范围（从开始标记行到结束标记行）
                         if (endLine > startLine) {
                             foldingRanges.push(new vscode.FoldingRange(
                                 startLine,
@@ -74,7 +225,6 @@ class HighlightBlockFoldingProvider {
             });
         }
 
-        // 返回找到的折叠范围，如果没有则返回空数组
         return foldingRanges;
     }
 }
@@ -404,9 +554,12 @@ function activate(context) {
         }
     });
 
-    // 注册折叠范围提供者（仅在启用折叠功能且有高亮块时提供）
+    // 注册折叠范围提供者（使用更具体的选择器以减少干扰）
     const foldingProviderRegistration = vscode.languages.registerFoldingRangeProvider(
-        '*', // 支持所有语言，但提供者内部会检查条件
+        [
+            { scheme: 'file' },
+            { scheme: 'untitled' }
+        ],
         foldingProvider
     );
 
