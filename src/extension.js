@@ -12,7 +12,7 @@ class HighlightBlockFoldingProvider {
         // 检查是否启用折叠功能
         const config = vscode.workspace.getConfiguration('highlightBlock');
         if (!config.get('enableFolding', true)) {
-            return null; // 返回null让其他提供者处理
+            return []; // 返回空数组而不是null
         }
 
         const colorMappings = this.highlightManager.getColorMappings();
@@ -26,9 +26,9 @@ class HighlightBlockFoldingProvider {
             }
         });
 
-        // 如果没有高亮标记，返回null让其他折叠提供者处理
+        // 如果没有高亮标记，返回空数组让其他折叠提供者处理
         if (!hasHighlightMarkers) {
-            return null;
+            return [];
         }
 
         const foldingRanges = [];
@@ -74,8 +74,8 @@ class HighlightBlockFoldingProvider {
             });
         }
 
-        // 如果没有找到有效的折叠范围，返回null让其他提供者处理
-        return foldingRanges.length > 0 ? foldingRanges : null;
+        // 返回找到的折叠范围，如果没有则返回空数组
+        return foldingRanges;
     }
 }
 
