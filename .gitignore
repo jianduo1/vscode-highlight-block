@@ -1,5 +1,4 @@
 # VS Code Extension
-*.vsix
 node_modules/
 out/
 .vscode-test/
