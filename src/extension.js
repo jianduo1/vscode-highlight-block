@@ -42,7 +42,250 @@ class HighlightBlockFoldingProvider {
     const text = document.getText();
     const lines = text.split("\n");
 
-    // 基于括号的折叠检测
+    // 1. 基于语法结构的折叠检测（函数、类、控制流等）
+    const syntaxRanges = this.getSyntaxBasedFolding(document, lines);
+    foldingRanges.push(...syntaxRanges);
+
+    // 2. 基于括号的折叠检测
+    const bracketRanges = this.getBracketBasedFolding(lines);
+    foldingRanges.push(...bracketRanges);
+
+    // 3. 基于缩进的折叠检测（适用于Python等）
+    if (document.languageId === "python" || document.languageId === "yaml") {
+      const indentRanges = this.getIndentBasedFolding(lines);
+      foldingRanges.push(...indentRanges);
+    }
+
+    // 4. 基于#region/#endregion的折叠
+    const regionRanges = this.getRegionBasedFolding(lines);
+    foldingRanges.push(...regionRanges);
+
+    // 5. 基于注释块的折叠
+    const commentRanges = this.getCommentBlockFolding(lines);
+    foldingRanges.push(...commentRanges);
+
+    return foldingRanges;
+  }
+
+  /**
+   * 获取基于语法结构的折叠范围（函数、类、控制流等）
+   */
+  getSyntaxBasedFolding(document, lines) {
+    const foldingRanges = [];
+    const languageId = document.languageId;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmedLine = line.trim();
+      
+      // 跳过空行和注释行
+      if (trimmedLine === "" || this.isCommentLine(trimmedLine, languageId)) {
+        continue;
+      }
+
+      // 检查函数声明
+      if (this.isFunctionDeclaration(trimmedLine, languageId)) {
+        const endLine = this.findBlockEnd(lines, i, languageId);
+        if (endLine > i + 1) {
+          foldingRanges.push(new vscode.FoldingRange(i, endLine, vscode.FoldingRangeKind.Region));
+        }
+      }
+      // 检查类声明
+      else if (this.isClassDeclaration(trimmedLine, languageId)) {
+        const endLine = this.findBlockEnd(lines, i, languageId);
+        if (endLine > i + 1) {
+          foldingRanges.push(new vscode.FoldingRange(i, endLine, vscode.FoldingRangeKind.Region));
+        }
+      }
+      // 检查控制流语句
+      else if (this.isControlFlowStatement(trimmedLine, languageId)) {
+        const endLine = this.findBlockEnd(lines, i, languageId);
+        if (endLine > i + 1) {
+          foldingRanges.push(new vscode.FoldingRange(i, endLine, vscode.FoldingRangeKind.Region));
+        }
+      }
+    }
+
+    return foldingRanges;
+  }
+
+  /**
+   * 检查是否为注释行
+   */
+  isCommentLine(line, languageId) {
+    // JavaScript/TypeScript/Java/C++/C#
+    if (['javascript', 'typescript', 'java', 'cpp', 'c', 'csharp'].includes(languageId)) {
+      return line.startsWith('//') || line.startsWith('/*') || line.startsWith('*');
+    }
+    // Python/Shell
+    if (['python', 'shellscript', 'bash'].includes(languageId)) {
+      return line.startsWith('#');
+    }
+    // HTML/XML
+    if (['html', 'xml'].includes(languageId)) {
+      return line.startsWith('<!--');
+    }
+    // CSS
+    if (languageId === 'css') {
+      return line.startsWith('/*');
+    }
+    return false;
+  }
+
+  /**
+   * 检查是否为函数声明
+   */
+  isFunctionDeclaration(line, languageId) {
+    // JavaScript/TypeScript
+    if (['javascript', 'typescript'].includes(languageId)) {
+      return /^(export\s+)?(async\s+)?function\s+\w+\s*\(|^(export\s+)?(const|let|var)\s+\w+\s*=\s*(async\s+)?\(|^\s*\w+\s*:\s*(async\s+)?\(|^(export\s+)?(async\s+)?\w+\s*\(/m.test(line);
+    }
+    // Python
+    if (languageId === 'python') {
+      return /^(async\s+)?def\s+\w+\s*\(/m.test(line);
+    }
+    // Java/C#
+    if (['java', 'csharp'].includes(languageId)) {
+      return /^\s*(public|private|protected|static|abstract|virtual|override).*\s+\w+\s*\(/m.test(line) && !line.includes(';');
+    }
+    // C/C++
+    if (['c', 'cpp'].includes(languageId)) {
+      return /^\w+\s+\w+\s*\(.*\)\s*\{?$/m.test(line) || /^\w+\s*\*?\s*\w+\s*\(.*\)\s*\{?$/m.test(line);
+    }
+    // Rust
+    if (languageId === 'rust') {
+      return /^(pub\s+)?(async\s+)?fn\s+\w+/m.test(line);
+    }
+    // Go
+    if (languageId === 'go') {
+      return /^func\s+(\w+\s+)?\w+\s*\(/m.test(line);
+    }
+    return false;
+  }
+
+  /**
+   * 检查是否为类声明
+   */
+  isClassDeclaration(line, languageId) {
+    // JavaScript/TypeScript
+    if (['javascript', 'typescript'].includes(languageId)) {
+      return /^(export\s+)?(abstract\s+)?class\s+\w+/m.test(line) || /^(export\s+)?interface\s+\w+/m.test(line);
+    }
+    // Python
+    if (languageId === 'python') {
+      return /^class\s+\w+/m.test(line);
+    }
+    // Java/C#
+    if (['java', 'csharp'].includes(languageId)) {
+      return /^(public|private|protected)?\s*(abstract|static|final)?\s*(class|interface|enum)\s+\w+/m.test(line);
+    }
+    // C++
+    if (languageId === 'cpp') {
+      return /^(class|struct)\s+\w+/m.test(line);
+    }
+    // Rust
+    if (languageId === 'rust') {
+      return /^(pub\s+)?(struct|enum|trait|impl)\s+\w+/m.test(line);
+    }
+    return false;
+  }
+
+  /**
+   * 检查是否为控制流语句
+   */
+  isControlFlowStatement(line, languageId) {
+    // JavaScript/TypeScript/Java/C++/C#
+    if (['javascript', 'typescript', 'java', 'cpp', 'c', 'csharp'].includes(languageId)) {
+      return /^(if|else|for|while|do|switch|try|catch|finally)\s*[\(\{]|^else\s*\{/m.test(line);
+    }
+    // Python
+    if (languageId === 'python') {
+      return /^(if|elif|else|for|while|try|except|finally|with)\s.*:/m.test(line);
+    }
+    // Rust
+    if (languageId === 'rust') {
+      return /^(if|else|for|while|loop|match)\s/m.test(line);
+    }
+    // Go
+    if (languageId === 'go') {
+      return /^(if|else|for|switch|select)\s/m.test(line);
+    }
+    return false;
+  }
+
+  /**
+   * 查找代码块的结束行
+   */
+  findBlockEnd(lines, startLine, languageId) {
+    // Python使用缩进来确定块结束
+    if (languageId === 'python') {
+      return this.findPythonBlockEnd(lines, startLine);
+    }
+    
+    // 其他语言使用括号匹配
+    return this.findBracketBlockEnd(lines, startLine);
+  }
+
+  /**
+   * 查找Python风格代码块的结束（基于缩进）
+   */
+  findPythonBlockEnd(lines, startLine) {
+    const startIndent = lines[startLine].search(/\S/);
+    
+    for (let i = startLine + 1; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // 跳过空行
+      if (line.trim() === '') {
+        continue;
+      }
+      
+      const currentIndent = line.search(/\S/);
+      
+      // 如果缩进小于等于起始缩进，说明块结束了
+      if (currentIndent <= startIndent) {
+        return i - 1;
+      }
+    }
+    
+    return lines.length - 1;
+  }
+
+  /**
+   * 查找括号风格代码块的结束
+   */
+  findBracketBlockEnd(lines, startLine) {
+    let braceCount = 0;
+    let foundOpenBrace = false;
+    
+    for (let i = startLine; i < lines.length; i++) {
+      const line = lines[i];
+      
+      for (let j = 0; j < line.length; j++) {
+        const char = line[j];
+        
+        if (char === '{') {
+          braceCount++;
+          foundOpenBrace = true;
+        } else if (char === '}') {
+          braceCount--;
+          
+          // 找到匹配的闭括号
+          if (foundOpenBrace && braceCount === 0) {
+            return i;
+          }
+        }
+      }
+    }
+    
+    return startLine;
+  }
+
+  /**
+   * 获取基于括号的折叠范围
+   */
+  getBracketBasedFolding(lines) {
+    const foldingRanges = [];
     const bracketStack = [];
     const bracketPairs = [
       {open: "{", close: "}"},
@@ -93,15 +336,57 @@ class HighlightBlockFoldingProvider {
       }
     }
 
-    // 基于缩进的折叠检测（适用于Python等）
-    if (document.languageId === "python" || document.languageId === "yaml") {
-      const indentRanges = this.getIndentBasedFolding(lines);
-      foldingRanges.push(...indentRanges);
-    }
+    return foldingRanges;
+  }
 
-    // 基于#region/#endregion的折叠
-    const regionRanges = this.getRegionBasedFolding(lines);
-    foldingRanges.push(...regionRanges);
+  /**
+   * 获取注释块的折叠范围
+   */
+  getCommentBlockFolding(lines) {
+    const foldingRanges = [];
+    let inBlockComment = false;
+    let blockCommentStart = -1;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmedLine = line.trim();
+
+      // 检查块注释开始 /*
+      if (trimmedLine.includes('/*') && !inBlockComment) {
+        inBlockComment = true;
+        blockCommentStart = i;
+      }
+      // 检查块注释结束 */
+      else if (trimmedLine.includes('*/') && inBlockComment) {
+        inBlockComment = false;
+        if (i > blockCommentStart + 1) {
+          foldingRanges.push(new vscode.FoldingRange(blockCommentStart, i, vscode.FoldingRangeKind.Comment));
+        }
+      }
+      // 检查连续的单行注释
+      else if (trimmedLine.startsWith('//') || trimmedLine.startsWith('#')) {
+        let commentBlockStart = i;
+        let commentBlockEnd = i;
+        
+        // 向下查找连续的注释行
+        while (commentBlockEnd + 1 < lines.length) {
+          const nextLine = lines[commentBlockEnd + 1].trim();
+          if (nextLine.startsWith('//') || nextLine.startsWith('#')) {
+            commentBlockEnd++;
+          } else {
+            break;
+          }
+        }
+        
+        // 如果有多行连续注释，创建折叠范围
+        if (commentBlockEnd > commentBlockStart + 1) {
+          foldingRanges.push(new vscode.FoldingRange(commentBlockStart, commentBlockEnd, vscode.FoldingRangeKind.Comment));
+        }
+        
+        // 跳过已处理的行
+        i = commentBlockEnd;
+      }
+    }
 
     return foldingRanges;
   }

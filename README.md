@@ -201,10 +201,6 @@ important_note = "这是一个笔记"
 vsce package --allow-missing-repository
 ```
 
-## 逻辑
-
-![](https://raw.githubusercontent.com/jianduo1/vscode-highlight-block/main/images/prd.svg)
-
 ## 许可证
 
 MIT License
