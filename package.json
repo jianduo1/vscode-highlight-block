@@ -2,7 +2,7 @@
   "name": "highlight-block",
   "displayName": "Highlight Block",
   "description": "高亮指定标记之间的代码块",
-  "version": "1.2.1",
+  "version": "1.2.4",
   "icon": "icon.jpg",
   "engines": {
     "vscode": "^1.74.0"
@@ -70,15 +70,10 @@
           "default": true,
           "description": "自动检测并高亮标记块"
         },
-        "highlightBlock.enableFolding": {
-          "type": "boolean",
-          "default": true,
-          "description": "为高亮代码块启用折叠功能"
-        },
         "highlightBlock.provideDefaultFolding": {
           "type": "boolean",
-          "default": false,
-          "description": "提供基础代码折叠功能（函数、括号、#region等）。在Cursor等编辑器中如果内置折叠被覆盖时启用此选项"
+          "default": true,
+          "description": "提供基础代码折叠功能（函数、括号、#region、doc-string等）。"
         }
       }
     }

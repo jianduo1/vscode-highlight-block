@@ -9,16 +9,20 @@ class HighlightBlockFoldingProvider {
   provideFoldingRanges(document, context, token) {
     // 检查是否启用折叠功能
     const config = vscode.workspace.getConfiguration("highlightBlock");
-    if (!config.get("enableFolding", true)) {
-      return undefined; // 返回undefined让其他折叠提供者处理
-    }
 
     const allFoldingRanges = [];
 
     const provideDefault = config.get("provideDefaultFolding", false);
     console.log(`provideDefaultFolding 配置: ${provideDefault}`);
+
+    // 添加高亮块折叠
+    const highlightRanges = this.getHighlightBlockFoldingRanges(document);
+    if (highlightRanges && highlightRanges.length > 0) {
+      allFoldingRanges.push(...highlightRanges);
+    }
+    
+    // 只有当启用默认折叠时才添加我们的折叠范围
     if (provideDefault) {
-      // 1. 添加基于正则表达式的通用折叠检测
       const text = document.getText();
       const lines = text.split("\n");
 
@@ -26,7 +30,7 @@ class HighlightBlockFoldingProvider {
       const regexRanges = this.getRegexBasedFolding(lines);
       allFoldingRanges.push(...regexRanges);
 
-      // ⭐️ 基于缩进的折叠检测（适用于Python等）
+      // ⭐️ 基于缩进的折叠检测
       const indentRanges = this.getIndentBasedFolding(lines);
       allFoldingRanges.push(...indentRanges);
 
@@ -35,13 +39,9 @@ class HighlightBlockFoldingProvider {
       allFoldingRanges.push(...regionRanges);
     }
 
-    // 2. 添加高亮块折叠
-    const highlightRanges = this.getHighlightBlockFoldingRanges(document);
-    if (highlightRanges && highlightRanges.length > 0) {
-      allFoldingRanges.push(...highlightRanges);
-    }
-
-    return allFoldingRanges.length > 0 ? allFoldingRanges : undefined;
+    // 只有当有我们自己的折叠范围时才返回，否则返回空数组
+    // 这样可以确保不干扰其他折叠提供者（如Pylance）
+    return allFoldingRanges.length > 0 ? allFoldingRanges : null;
   }
 
   /** 移除代码块末尾的空白行*/
@@ -62,8 +62,14 @@ class HighlightBlockFoldingProvider {
     const text = lines.join('\n');
     
     // 使用正则表达式匹配各种代码块
-    const regex = /""".*?"""|\/\*.*?\*\/| *#[^\n]*(?:\r?\n *#[^\n]*)+| *\/\/[^\n]*(?:\r?\n *\/\/[^\n]*)+/gs;
-    
+    const regex = /""".*?"""|\/\*.*?\*\/| *#[^\n]*(?:\r?\n *(?:#[^\n]*)?)* *#[^\n]*| *\/\/[^\n]*(?:\r?\n *\/\/[^\n]*)+/gs;
+    const test = `
+    # 123
+
+    # 345
+
+    dsd`;
+
     let match;
     while ((match = regex.exec(text)) !== null) {
       const matchedText = match[0];
@@ -336,8 +342,6 @@ class HighlightBlockManager {
       });
     }
 
-    // 不处理未结束的块，只渲染完整的 start-end 对
-    // 未结束的块会被丢弃，不进行渲染
 
     return allBlocks;
   }
@@ -529,6 +533,12 @@ function activate(context) {
   const onDidChangeConfiguration = vscode.workspace.onDidChangeConfiguration((event) => {
     if (event.affectsConfiguration("highlightBlock")) {
       highlightManager.reinitialize();
+      
+      // 如果折叠相关配置发生变化，重新注册折叠提供者
+      if (event.affectsConfiguration("highlightBlock.provideDefaultFolding")) {
+        registerFoldingProvider();
+      }
+      
       vscode.window.showInformationMessage("高亮块配置已更新");
     }
   });
