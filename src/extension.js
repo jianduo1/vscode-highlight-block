@@ -21,15 +21,18 @@ class HighlightBlockFoldingProvider {
       allFoldingRanges.push(...highlightRanges);
     }
 
+    // 获取文档内容和行数据
+    const text = document.getText();
+    const lines = text.split("\n");
+
     // ⭐️ 基于缩进的折叠检测
     const indentRanges = this.getIndentBasedFolding(lines);
-    allFoldingRanges.push(...indentRanges);
+    if (indentRanges && indentRanges.length > 0) {
+      allFoldingRanges.push(...indentRanges);
+    }
 
     // 只有当启用默认折叠时才添加我们的折叠范围
     if (provideDefault && document.languageId === "python") {
-      const text = document.getText();
-      const lines = text.split("\n");
-
       // ⭐️ 基于正则表达式的折叠检测
       const regexRanges = this.getRegexBasedFolding(lines);
       allFoldingRanges.push(...regexRanges);
