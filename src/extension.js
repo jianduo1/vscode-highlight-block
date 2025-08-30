@@ -15,24 +15,24 @@ class HighlightBlockFoldingProvider {
     const provideDefault = config.get("provideDefaultFolding", false);
     console.log(`provideDefaultFolding 配置: ${provideDefault}`);
 
-    // 添加高亮块折叠
+    // ⭐️ 添加高亮块折叠
     const highlightRanges = this.getHighlightBlockFoldingRanges(document);
     if (highlightRanges && highlightRanges.length > 0) {
       allFoldingRanges.push(...highlightRanges);
     }
-    
+
+    // ⭐️ 基于缩进的折叠检测
+    const indentRanges = this.getIndentBasedFolding(lines);
+    allFoldingRanges.push(...indentRanges);
+
     // 只有当启用默认折叠时才添加我们的折叠范围
-    if (provideDefault) {
+    if (provideDefault && document.languageId === "python") {
       const text = document.getText();
       const lines = text.split("\n");
 
       // ⭐️ 基于正则表达式的折叠检测
       const regexRanges = this.getRegexBasedFolding(lines);
       allFoldingRanges.push(...regexRanges);
-
-      // ⭐️ 基于缩进的折叠检测
-      const indentRanges = this.getIndentBasedFolding(lines);
-      allFoldingRanges.push(...indentRanges);
 
       // ⭐️ 基于#region/#endregion的折叠
       const regionRanges = this.getRegionBasedFolding(lines);
