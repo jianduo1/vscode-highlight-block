@@ -25,12 +25,6 @@ class HighlightBlockFoldingProvider {
     const text = document.getText();
     const lines = text.split("\n");
 
-    // ⭐️ 基于缩进的折叠检测
-    const indentRanges = this.getIndentBasedFolding(lines);
-    if (indentRanges && indentRanges.length > 0) {
-      allFoldingRanges.push(...indentRanges);
-    }
-
     // 只有当启用默认折叠时才添加我们的折叠范围
     if (provideDefault && document.languageId === "python") {
       // ⭐️ 基于正则表达式的折叠检测
@@ -40,6 +34,12 @@ class HighlightBlockFoldingProvider {
       // ⭐️ 基于#region/#endregion的折叠
       const regionRanges = this.getRegionBasedFolding(lines);
       allFoldingRanges.push(...regionRanges);
+    }
+
+    // ⭐️ 基于缩进的折叠检测
+    const indentRanges = this.getIndentBasedFolding(lines);
+    if (indentRanges && indentRanges.length > 0) {
+      allFoldingRanges.push(...indentRanges);
     }
 
     // 只有当有我们自己的折叠范围时才返回，否则返回空数组
@@ -62,10 +62,16 @@ class HighlightBlockFoldingProvider {
   /** 基于正则表达式的通用折叠检测*/
   getRegexBasedFolding(lines) {
     const foldingRanges = [];
-    const text = lines.join('\n');
-    
+    const text = lines.join("\n");
+
     // 使用正则表达式匹配各种代码块
-    const regex = /""".*?"""|\/\*.*?\*\/| *#[^\n]*(?:\r?\n *(?:#[^\n]*)?)* *#[^\n]*| *\/\/[^\n]*(?:\r?\n *\/\/[^\n]*)+/gs;
+    // const regex = /""".*?"""|\/\*.*?\*\/|(?:^\s*#[^\n]*)(?:\r?\n *(?:#[^\n]*)?)* *#[^\n]*|(?:^\s*\/\/[^\n]*)(?:\r?\n *\/\/[^\n]*)+/gs;
+
+    // const regex = /""".*?"""|\/\*.*?\*\/| *#[^\n]*(?:\r?\n *(?:#[^\n]*)?)* *#[^\n]*| *\/\/[^\n]*(?:\r?\n *\/\/[^\n]*)+/gs; // 123
+    const regex = /""".*?"""|\/\*.*?\*\/| *#[^\n]*(?:\r?\n *#[^\n]*)+| *\/\/[^\n]*(?:\r?\n *\/\/[^\n]*)+/gs; // 123
+    // 234
+    // 432
+    
     const test = `
     # 123
 
@@ -78,20 +84,20 @@ class HighlightBlockFoldingProvider {
       const matchedText = match[0];
       const startPos = match.index;
       const endPos = startPos + matchedText.length;
-      
+
       // 计算开始和结束行号
-      const startLine = text.substring(0, startPos).split('\n').length - 1;
-      const endLine = text.substring(0, endPos).split('\n').length - 1;
-      
+      const startLine = text.substring(0, startPos).split("\n").length - 1;
+      const endLine = text.substring(0, endPos).split("\n").length - 1;
+
       // 确保至少有2行才进行折叠
       if (endLine > startLine + 1) {
         // 根据匹配类型确定折叠类型
         let foldingKind = vscode.FoldingRangeKind.Region;
-        
-        if (matchedText.includes('/*') || matchedText.includes('//') || matchedText.includes('#')) {
+
+        if (matchedText.includes("/*") || matchedText.includes("//") || matchedText.includes("#")) {
           foldingKind = vscode.FoldingRangeKind.Comment;
         }
-        
+
         // 去除末尾的空白行
         const trimmedEndLine = this.trimTrailingEmptyLines(lines, endLine);
         if (trimmedEndLine > startLine) {
@@ -99,7 +105,7 @@ class HighlightBlockFoldingProvider {
         }
       }
     }
-    
+
     return foldingRanges;
   }
 
@@ -107,11 +113,21 @@ class HighlightBlockFoldingProvider {
   getIndentBasedFolding(lines) {
     const foldingRanges = [];
     const indentStack = [];
+    const multiLineStringStack = [];
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       
       if (line.trim() === "") continue; // 跳过空行
+      if (line.trim().startsWith('"""')) {
+        multiLineStringStack.push(i);
+        continue;
+      }
+      if (line.trim().endsWith('"""')) {
+        multiLineStringStack.pop();
+        continue;
+      }
+      if (multiLineStringStack.length > 0) continue; // 跳过多行字符串
 
       const indent = line.search(/\S/); // 找到第一个非空白字符的位置
       if (indent === -1) continue; // 跳过只有空白字符的行
@@ -140,7 +156,7 @@ class HighlightBlockFoldingProvider {
       indentStack.push({line: i, indent: indent});
     }
 
-    // 处理剩余的缩进
+    // 如果文件末尾有未闭合的缩进块，则处理剩余的缩进
     while (indentStack.length > 0) {
       const indentInfo = indentStack.pop();
       // 检查缩进块是否包含多行代码

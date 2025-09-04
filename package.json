@@ -2,7 +2,7 @@
   "name": "highlight-block",
   "displayName": "Highlight Block",
   "description": "高亮指定标记之间的代码块",
-  "version": "1.2.7",
+  "version": "1.2.8",
   "icon": "icon.jpg",
   "engines": {
     "vscode": "^1.74.0"
@@ -79,7 +79,7 @@
     }
   },
   "scripts": {
-    "package": "vsce package -o release/"
+    "pkg": "vsce package -o release/"
   },
   "devDependencies": {
     "@vscode/vsce": "^2.19.0"
