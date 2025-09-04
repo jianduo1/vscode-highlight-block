@@ -59,26 +59,120 @@ class HighlightBlockFoldingProvider {
     return endLine;
   }
 
+  /** 找到折叠块的实际起始行，确保不包含无关的前置行*/
+  findActualStartLine(lines, calculatedStartLine, matchedText) {
+    // 对于多行字符串，确保折叠从包含开始标记的行开始
+    const line = lines[calculatedStartLine];
+    if (!line) return calculatedStartLine;
+
+    // 检查这一行是否真的包含匹配内容的开始部分
+    const firstLineOfMatch = matchedText.split('\n')[0];
+    
+    // 如果当前行包含匹配内容的开始，就使用当前行
+    if (line.includes(firstLineOfMatch) || line.includes('"""') || line.includes("'''")) {
+      return calculatedStartLine;
+    }
+
+    // 否则，向下查找真正的起始行
+    for (let i = calculatedStartLine; i < lines.length; i++) {
+      const currentLine = lines[i];
+      if (currentLine && (currentLine.includes(firstLineOfMatch) || 
+          currentLine.includes('"""') || currentLine.includes("'''"))) {
+        return i;
+      }
+    }
+
+    return calculatedStartLine;
+  }
+
+  /** 调整缩进折叠的起始行，避免包含单独的注释行*/
+  adjustStartLineForIndentFolding(lines, startLine, endLine) {
+    const startLineContent = lines[startLine];
+    if (!startLineContent) return startLine;
+
+    // 计算折叠范围的大小
+    const foldSize = endLine - startLine;
+    
+    // 如果折叠范围很小（<=3行），需要更严格的检查
+    if (foldSize <= 3) {
+      // 检查是否主要是注释行
+      let commentLineCount = 0;
+      let codeLineCount = 0;
+      
+      for (let i = startLine; i <= endLine; i++) {
+        const line = lines[i];
+        if (line && line.trim() !== '') {
+          if (line.trim().startsWith('#')) {
+            commentLineCount++;
+          } else {
+            codeLineCount++;
+          }
+        }
+      }
+      
+      // 如果小范围折叠中注释行占主导，跳过这个折叠
+      if (commentLineCount >= codeLineCount && foldSize <= 3) {
+        return endLine; // 返回一个无效的起始位置，使折叠被跳过
+      }
+    }
+
+    // 如果起始行是单独的注释行，检查下一行是否是更合适的起始位置
+    if (startLineContent.trim().startsWith('#')) {
+      // 查找下一个非空、非注释的行作为真正的折叠起始行
+      for (let i = startLine + 1; i < endLine; i++) {
+        const line = lines[i];
+        if (line && line.trim() !== '' && !line.trim().startsWith('#')) {
+          // 确保这一行确实有足够的内容值得折叠
+          // 并且后面还有其他行
+          if (i < endLine - 1) {
+            return i;
+          }
+        }
+      }
+    }
+
+    return startLine;
+  }
+
   /** 基于正则表达式的通用折叠检测*/
   getRegexBasedFolding(lines) {
     const foldingRanges = [];
     const text = lines.join("\n");
 
-    // 使用正则表达式匹配各种代码块
-    // const regex = /""".*?"""|\/\*.*?\*\/|(?:^\s*#[^\n]*)(?:\r?\n *(?:#[^\n]*)?)* *#[^\n]*|(?:^\s*\/\/[^\n]*)(?:\r?\n *\/\/[^\n]*)+/gs;
-
-    // const regex = /""".*?"""|\/\*.*?\*\/| *#[^\n]*(?:\r?\n *(?:#[^\n]*)?)* *#[^\n]*| *\/\/[^\n]*(?:\r?\n *\/\/[^\n]*)+/gs; // 123
-    const regex = /""".*?"""|\/\*.*?\*\/| *#[^\n]*(?:\r?\n *#[^\n]*)+| *\/\/[^\n]*(?:\r?\n *\/\/[^\n]*)+/gs; // 123
-    // 234
-    // 432
+    // 处理双引号多行字符串折叠
+    this.addFoldingRangesForRegex(text, lines, foldingRanges, /"""(?:[^"\\]|\\.|"(?!""))*"""/gs, vscode.FoldingRangeKind.Region);
     
-    const test = `
-    # 123
+    // 处理单引号多行字符串折叠
+    this.addFoldingRangesForRegex(text, lines, foldingRanges, /'''(?:[^'\\]|\\.|'(?!''))*'''/gs, vscode.FoldingRangeKind.Region);
+    
+    // 处理多行注释折叠
+    this.addFoldingRangesForRegex(text, lines, foldingRanges, /\/\*[\s\S]*?\*\//gs, vscode.FoldingRangeKind.Comment);
+    
+    // 处理Python风格的多行注释折叠 (只有连续的3行或以上注释才折叠)
+    this.addFoldingRangesForRegex(text, lines, foldingRanges, / *#[^\n]*(?:\r?\n *#[^\n]*){2,}/gs, vscode.FoldingRangeKind.Comment);
+    
+    // 处理多行单行注释折叠
+    this.addFoldingRangesForRegex(text, lines, foldingRanges, / *\/\/[^\n]*(?:\r?\n *\/\/[^\n]*)+/gs, vscode.FoldingRangeKind.Comment);
 
-    # 345
+    return foldingRanges;
+  }
 
-    dsd`;
+  /** 检查指定行是否在多行字符串内部*/
+  isInsideMultiLineString(lines, lineIndex) {
+    let inMultiLineString = false;
+    for (let i = 0; i < lineIndex; i++) {
+      const line = lines[i];
+      if (/^\s*(\w+\s*=\s*)?"""/.test(line) && !inMultiLineString) {
+        inMultiLineString = true;
+      } else if (line.trim().endsWith('"""') && inMultiLineString) {
+        inMultiLineString = false;
+      }
+    }
+    return inMultiLineString;
+  }
 
+  /** 为指定正则表达式添加折叠范围*/
+  addFoldingRangesForRegex(text, lines, foldingRanges, regex, foldingKind) {
     let match;
     while ((match = regex.exec(text)) !== null) {
       const matchedText = match[0];
@@ -91,22 +185,15 @@ class HighlightBlockFoldingProvider {
 
       // 确保至少有2行才进行折叠
       if (endLine > startLine + 1) {
-        // 根据匹配类型确定折叠类型
-        let foldingKind = vscode.FoldingRangeKind.Region;
-
-        if (matchedText.includes("/*") || matchedText.includes("//") || matchedText.includes("#")) {
-          foldingKind = vscode.FoldingRangeKind.Comment;
-        }
-
         // 去除末尾的空白行
         const trimmedEndLine = this.trimTrailingEmptyLines(lines, endLine);
         if (trimmedEndLine > startLine) {
-          foldingRanges.push(new vscode.FoldingRange(startLine, trimmedEndLine, foldingKind));
+          // 检查折叠块的确切起始位置，确保不包含无关的前置行
+          const actualStartLine = this.findActualStartLine(lines, startLine, matchedText);
+          foldingRanges.push(new vscode.FoldingRange(actualStartLine, trimmedEndLine, foldingKind));
         }
       }
     }
-
-    return foldingRanges;
   }
 
   /** 获取基于缩进的折叠范围*/  
@@ -118,12 +205,12 @@ class HighlightBlockFoldingProvider {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       
-      if (line.trim() === "") continue; // 跳过空行
-      if (line.trim().startsWith('"""')) {
+      if (line.trim() === "" || /\s*""".*"""\s*/.test(line)) continue; // 跳过空行 
+      if (/^\s*(\w+\s*=\s*)?"""/.test(line) && multiLineStringStack.length === 0) {
         multiLineStringStack.push(i);
         continue;
       }
-      if (line.trim().endsWith('"""')) {
+      if (line.trim().endsWith('"""') && multiLineStringStack.length > 0) {
         multiLineStringStack.pop();
         continue;
       }
@@ -135,21 +222,44 @@ class HighlightBlockFoldingProvider {
       // 处理缩进减少的情况
       while (indentStack.length > 0 && indentStack[indentStack.length - 1].indent >= indent) {
         const indentInfo = indentStack.pop();
+        
         // 检查缩进块是否包含多行代码
         let hasMultipleLines = false;
         let lastContentLine = indentInfo.line; // 记录最后一个非空行的位置
+        let contentLineCount = 0; // 统计非空行数量
         
         // 从缩进开始处查找最后一个非空行
         for (let lineIdx = indentInfo.line + 1; lineIdx <= i - 1; lineIdx++) {
-          if (lines[lineIdx].trim() !== "") {
+          const currentLine = lines[lineIdx];
+          
+          if (currentLine.trim() !== "") {
             hasMultipleLines = true;
             lastContentLine = lineIdx; // 更新最后一个非空行的位置
+            contentLineCount++;
           }
         }
         
-        // 只有当有多行代码时才创建折叠范围，且只折叠到最后的非空行
-        if (hasMultipleLines && lastContentLine > indentInfo.line) {
-          foldingRanges.push(new vscode.FoldingRange(indentInfo.line, lastContentLine, vscode.FoldingRangeKind.Region));
+        // 创建折叠范围的条件：
+        // 1. 缩进确实减少了，或者
+        // 2. 缩进相同但有多行代码且至少有1行内容
+        const shouldCreateFold = indentInfo.indent > indent || 
+          (indentInfo.indent === indent && hasMultipleLines && contentLineCount >= 1);
+        
+        if (shouldCreateFold && lastContentLine > indentInfo.line) {
+          // 检查起始行是否是单独的注释行，如果是则跳过或调整起始位置
+          const actualStartLine = this.adjustStartLineForIndentFolding(lines, indentInfo.line, lastContentLine);
+          if (actualStartLine < lastContentLine) {
+            // 额外检查：避免创建过小的折叠范围
+            const foldSize = lastContentLine - actualStartLine;
+            if (foldSize >= 2) {  // 至少要有3行才值得折叠
+              foldingRanges.push(new vscode.FoldingRange(actualStartLine, lastContentLine, vscode.FoldingRangeKind.Region));
+            }
+          }
+        }
+        
+        // 如果缩进相同，跳出循环
+        if (indentInfo.indent === indent) {
+          break;
         }
       }
 
@@ -162,18 +272,28 @@ class HighlightBlockFoldingProvider {
       // 检查缩进块是否包含多行代码
       let hasMultipleLines = false;
       let lastContentLine = indentInfo.line; // 记录最后一个非空行的位置
+      let contentLineCount = 0; // 统计非空行数量
       
       // 从缩进开始处查找最后一个非空行
       for (let lineIdx = indentInfo.line + 1; lineIdx < lines.length; lineIdx++) {
         if (lines[lineIdx].trim() !== "") {
           hasMultipleLines = true;
           lastContentLine = lineIdx; // 更新最后一个非空行的位置
+          contentLineCount++;
         }
       }
       
-      // 只有当有多行代码时才创建折叠范围，且只折叠到最后的非空行
-      if (hasMultipleLines && lastContentLine > indentInfo.line) {
-        foldingRanges.push(new vscode.FoldingRange(indentInfo.line, lastContentLine, vscode.FoldingRangeKind.Region));
+      // 只有当有多行代码且至少有2行内容时才创建折叠范围
+      if (hasMultipleLines && contentLineCount >= 2 && lastContentLine > indentInfo.line) {
+        // 检查起始行是否是单独的注释行，如果是则跳过或调整起始位置
+        const actualStartLine = this.adjustStartLineForIndentFolding(lines, indentInfo.line, lastContentLine);
+        if (actualStartLine < lastContentLine) {
+          // 额外检查：避免创建过小的折叠范围
+          const foldSize = lastContentLine - actualStartLine;
+          if (foldSize >= 2) {  // 至少要有3行才值得折叠
+            foldingRanges.push(new vscode.FoldingRange(actualStartLine, lastContentLine, vscode.FoldingRangeKind.Region));
+          }
+        }
       }
     }
 
