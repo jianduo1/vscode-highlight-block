@@ -26,7 +26,7 @@ class HighlightBlockFoldingProvider {
     const lines = text.split("\n");
 
     // 只有当启用默认折叠时才添加我们的折叠范围
-    if (provideDefault && document.languageId === "python") {
+    if (provideDefault) {
       // ⭐️ 基于正则表达式的折叠检测
       const regexRanges = this.getRegexBasedFolding(lines);
       allFoldingRanges.push(...regexRanges);
@@ -205,16 +205,96 @@ class HighlightBlockFoldingProvider {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       
-      if (line.trim() === "" || /\s*""".*"""\s*/.test(line)) continue; // 跳过空行 
-      if (/^\s*(\w+\s*=\s*)?"""/.test(line) && multiLineStringStack.length === 0) {
-        multiLineStringStack.push(i);
-        continue;
+      if (line.trim() === "") continue; // 跳过空行
+      
+      // 更准确的多行字符串检测
+      const tripleQuoteCount = (line.match(/"""/g) || []).length;
+      const singleTripleQuoteCount = (line.match(/'''/g) || []).length;
+      
+      // 检查是否遇到多行字符串开始
+      const isMultiLineStringStart = (tripleQuoteCount > 0 && multiLineStringStack.length === 0 && tripleQuoteCount % 2 === 1) ||
+                                     (singleTripleQuoteCount > 0 && multiLineStringStack.length === 0 && singleTripleQuoteCount % 2 === 1);
+      
+      // 如果遇到多行字符串开始，先处理当前的缩进块
+      if (isMultiLineStringStart) {
+        // 处理所有当前的缩进块，确保它们在多行字符串开始前结束
+        while (indentStack.length > 0) {
+          const indentInfo = indentStack.pop();
+          
+          // 检查缩进块是否包含多行代码
+          let hasMultipleLines = false;
+          let lastContentLine = indentInfo.line; // 记录最后一个非空行的位置
+          let contentLineCount = 0; // 统计非空行数量
+          
+          // 从缩进开始处查找最后一个非空行（但不包括当前的多行字符串开始行）
+          for (let lineIdx = indentInfo.line + 1; lineIdx < i; lineIdx++) {
+            const currentLine = lines[lineIdx];
+            
+            if (currentLine.trim() !== "") {
+              hasMultipleLines = true;
+              lastContentLine = lineIdx; // 更新最后一个非空行的位置
+              contentLineCount++;
+            }
+          }
+          
+          // 检查起始行是否是重要结构
+          const startLineContent = lines[indentInfo.line];
+          const isImportantStructure = startLineContent && (
+            /^\s*(def |class |if |for |while |try:|except|finally:|with |async def |elif |else:)/.test(startLineContent) ||
+            /^\s*if __name__ == ['""]__main__['""]/.test(startLineContent)
+          );
+          
+          const shouldCreateFold = hasMultipleLines || isImportantStructure;
+          
+          if (shouldCreateFold && lastContentLine > indentInfo.line) {
+            // 检查起始行是否是单独的注释行，如果是则跳过或调整起始位置
+            const actualStartLine = this.adjustStartLineForIndentFolding(lines, indentInfo.line, lastContentLine);
+            if (actualStartLine < lastContentLine) {
+              // 额外检查：避免创建过小的折叠范围
+              const foldSize = lastContentLine - actualStartLine;
+              // 对于重要结构，放宽折叠要求
+              const minFoldSize = isImportantStructure ? 0 : 1;
+              if (foldSize >= minFoldSize) {
+                foldingRanges.push(new vscode.FoldingRange(actualStartLine, lastContentLine, vscode.FoldingRangeKind.Region));
+              }
+            }
+          }
+        }
       }
-      if (line.trim().endsWith('"""') && multiLineStringStack.length > 0) {
-        multiLineStringStack.pop();
-        continue;
+      
+      // 处理双引号多行字符串
+      if (tripleQuoteCount > 0) {
+        if (multiLineStringStack.length === 0) {
+          // 如果这一行只有开始标记（奇数个三引号），开始多行字符串
+          if (tripleQuoteCount % 2 === 1) {
+            multiLineStringStack.push(i);
+            continue;
+          }
+        } else {
+          // 如果在多行字符串中遇到结束标记
+          if (tripleQuoteCount % 2 === 1) {
+            multiLineStringStack.pop();
+            continue;
+          }
+        }
       }
-      if (multiLineStringStack.length > 0) continue; // 跳过多行字符串
+      
+      // 处理单引号多行字符串
+      if (singleTripleQuoteCount > 0) {
+        if (multiLineStringStack.length === 0) {
+          if (singleTripleQuoteCount % 2 === 1) {
+            multiLineStringStack.push(i);
+            continue;
+          }
+        } else {
+          if (singleTripleQuoteCount % 2 === 1) {
+            multiLineStringStack.pop();
+            continue;
+          }
+        }
+      }
+      
+      if (multiLineStringStack.length > 0) continue; // 跳过多行字符串内部
 
       const indent = line.search(/\S/); // 找到第一个非空白字符的位置
       if (indent === -1) continue; // 跳过只有空白字符的行
@@ -245,13 +325,22 @@ class HighlightBlockFoldingProvider {
         const shouldCreateFold = indentInfo.indent > indent || 
           (indentInfo.indent === indent && hasMultipleLines && contentLineCount >= 1);
         
-        if (shouldCreateFold && lastContentLine > indentInfo.line) {
+        // 检查起始行是否是函数定义、类定义、条件语句等值得折叠的结构
+        const startLineContent = lines[indentInfo.line];
+        const isImportantStructure = startLineContent && (
+          /^\s*(def |class |if |for |while |try:|except|finally:|with |async def |elif |else:)/.test(startLineContent) ||
+          /^\s*if __name__ == ['""]__main__['""]/.test(startLineContent)
+        );
+        
+        if ((shouldCreateFold || isImportantStructure) && lastContentLine > indentInfo.line) {
           // 检查起始行是否是单独的注释行，如果是则跳过或调整起始位置
           const actualStartLine = this.adjustStartLineForIndentFolding(lines, indentInfo.line, lastContentLine);
           if (actualStartLine < lastContentLine) {
             // 额外检查：避免创建过小的折叠范围
             const foldSize = lastContentLine - actualStartLine;
-            if (foldSize >= 2) {  // 至少要有3行才值得折叠
+            // 对于重要结构，放宽折叠要求
+            const minFoldSize = isImportantStructure ? 0 : 1;
+            if (foldSize >= minFoldSize) {
               foldingRanges.push(new vscode.FoldingRange(actualStartLine, lastContentLine, vscode.FoldingRangeKind.Region));
             }
           }
@@ -283,14 +372,25 @@ class HighlightBlockFoldingProvider {
         }
       }
       
-      // 只有当有多行代码且至少有2行内容时才创建折叠范围
-      if (hasMultipleLines && contentLineCount >= 2 && lastContentLine > indentInfo.line) {
+      // 检查起始行是否是重要结构
+      const startLineContent = lines[indentInfo.line];
+      const isImportantStructure = startLineContent && (
+        /^\s*(def |class |if |for |while |try:|except|finally:|with |async def |elif |else:)/.test(startLineContent) ||
+        /^\s*if __name__ == ['""]__main__['""]/.test(startLineContent)
+      );
+      
+      // 创建折叠的条件
+      const shouldCreateEndFold = (hasMultipleLines && contentLineCount >= 1) || isImportantStructure;
+      
+      if (shouldCreateEndFold && lastContentLine > indentInfo.line) {
         // 检查起始行是否是单独的注释行，如果是则跳过或调整起始位置
         const actualStartLine = this.adjustStartLineForIndentFolding(lines, indentInfo.line, lastContentLine);
         if (actualStartLine < lastContentLine) {
           // 额外检查：避免创建过小的折叠范围
           const foldSize = lastContentLine - actualStartLine;
-          if (foldSize >= 2) {  // 至少要有3行才值得折叠
+          // 对于重要结构，放宽折叠要求
+          const minFoldSize = isImportantStructure ? 0 : 1;
+          if (foldSize >= minFoldSize) {
             foldingRanges.push(new vscode.FoldingRange(actualStartLine, lastContentLine, vscode.FoldingRangeKind.Region));
           }
         }
