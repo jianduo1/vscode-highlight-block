@@ -34,3 +34,8 @@ jspm_packages/
 
 # Yarn Integrity file
 .yarn-integrity
+
+test.py
+
+debug*.js
+test*.js

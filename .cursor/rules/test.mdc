@@ -6,5 +6,3 @@ alwaysApply: true
 1、验证流程：
   每次修改完代码，执行生成插件，交给我自己测试
   命令： vsce package -o release/
-2、逻辑：
-  开启provideDefaultFolding，缩进折叠、语法折叠、多行字符串折叠才会生效

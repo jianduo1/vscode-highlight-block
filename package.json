@@ -2,7 +2,7 @@
   "name": "highlight-block",
   "displayName": "Highlight Block",
   "description": "高亮指定标记之间的代码块",
-  "version": "1.2.10",
+  "version": "1.2.11",
   "icon": "icon.jpg",
   "engines": {
     "vscode": "^1.74.0"
@@ -70,10 +70,29 @@
           "default": true,
           "description": "自动检测并高亮标记块"
         },
-        "highlightBlock.provideDefaultFolding": {
+
+        "highlightBlock.enableSyntaxFolding": {
           "type": "boolean",
           "default": true,
-          "description": "提供基础代码折叠功能（函数、括号、#region、doc-string等）。"
+          "description": "启用基于语法解析的智能折叠（使用tree-sitter）。"
+        },
+        "highlightBlock.enableRegexFolding": {
+          "type": "boolean",
+          "default": true,
+          "description": "启用基于正则表达式的折叠（多行字符串、注释等）。"
+        },
+        "highlightBlock.enableIndentFolding": {
+          "type": "boolean",
+          "default": false,
+          "description": "启用基于缩进的折叠。"
+        },
+        "highlightBlock.syntaxFoldingLanguages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": ["javascript", "typescript", "python", "java", "json"],
+          "description": "支持语法折叠的语言列表。"
         }
       }
     }
@@ -86,7 +105,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/highlight-block.git"
+    "url": "https://github.com/jianduo1/highlight-block.git"
   },
   "publisher": "jack-duo",
   "license": "MIT"
